@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>检票口关门前</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f1efe9; color: #22252b; line-height: 1.6; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 14px 40px; }
+  h1 { font-size: 26px; letter-spacing: 1px; }
+  .lead { color: #5a5f69; font-size: 14px; margin: 4px 0 14px; }
+  .card { background: #fff; border-radius: 10px; padding: 14px; border: 1px solid #dcd8cf; margin-bottom: 14px; min-width: 0; }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 8px; overflow-wrap: anywhere; }
+  label { font-size: 12px; color: #5a5f69; display: block; overflow-wrap: anywhere; }
+  input, textarea { font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid #c3bfb5; border-radius: 6px; width: 100%; min-width: 0; background: #fff; font-variant-numeric: tabular-nums; }
+  textarea { resize: vertical; min-height: 120px; line-height: 1.7; }
+  .g { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; }
+  .g > div { min-width: 0; } .g .full { grid-column: 1 / -1; }
+  .bad { border-color: #b23a2e !important; background: #fff0ec !important; }
+  button { font: inherit; font-size: 13px; padding: 6px 11px; border-radius: 6px; border: 1px solid #23406b; background: #23406b; color: #fff; cursor: pointer; }
+  button.ghost { background: #fff; color: #23406b; }
+  .presets, .dl { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .err { display: none; background: #fff0ec; border: 1px solid #ecb7aa; color: #8e2b1c; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; overflow-wrap: anywhere; }
+  .muted { color: #7a7f88; font-size: 12px; }
+  /* 发车牌 */
+  .board { background: #1c2230; color: #f3e9c6; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  .board .row1 { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .stamp { display: inline-block; border: 3px solid #f0b53a; color: #f0b53a; border-radius: 6px; padding: 0 10px; font-weight: 800; font-size: 20px; white-space: nowrap; }
+  .stamp.safe { border-color: #6fcf8f; color: #6fcf8f; } .stamp.miss, .stamp.late { border-color: #ff7a66; color: #ff7a66; }
+  #big { font-size: 15px; overflow-wrap: anywhere; } #big b { font-size: 28px; color: #fff; font-variant-numeric: tabular-nums; }
+  #sumTxt { font-size: 15px; margin-top: 6px; color: #fff; overflow-wrap: anywhere; }
+  #facts { margin: 8px 0 0 18px; font-size: 13px; color: #c9c3ae; } #facts li { margin: 2px 0; overflow-wrap: anywhere; }
+  .dep { width: 100%; border-collapse: collapse; margin-top: 12px; font-variant-numeric: tabular-nums; font-family: "SF Mono", Menlo, Consolas, monospace; }
+  .dep th { font-size: 12px; color: #9aa3b5; text-align: left; font-weight: 500; padding: 4px 6px; border-bottom: 1px solid #39425a; font-family: inherit; }
+  .dep td { padding: 5px 6px; border-bottom: 1px dashed #333b50; font-size: 15px; white-space: nowrap; }
+  .dep td:last-child, .dep th:last-child { text-align: right; }
+  .dep tr.mine td { color: #f0b53a; font-weight: 700; }
+  .dep tr.now td { color: #6fcf8f; }
+  /* 时间轴 */
+  .tl { position: relative; margin-top: 6px; }
+  #axis { display: block; width: 100%; height: 250px; }
+  .slide { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; font-size: 13px; }
+  .slide input[type=range] { flex: 1 1 220px; padding: 0; border: 0; }
+  #slTxt { flex: 1 1 100%; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .legs { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 10px; }
+  .legs td, .legs th { padding: 4px 6px; border-bottom: 1px solid #ece8df; text-align: right; }
+  .legs td:first-child, .legs th:first-child { text-align: left; overflow-wrap: anywhere; }
+  .legs th { font-size: 12px; color: #5a5f69; font-weight: 600; }
+  .bar { display: inline-block; height: 8px; background: #d9822b; border-radius: 4px; vertical-align: middle; }
+  .legs tr.worst td { background: #fff4e3; }
+  #sugs { display: grid; gap: 8px; }
+  .sug { display: flex; gap: 10px; align-items: center; justify-content: space-between; border: 1px solid #dcd8cf; border-radius: 6px; padding: 8px 10px; }
+  .sug span { min-width: 0; overflow-wrap: anywhere; font-size: 14px; } .sug button { flex: none; }
+  .how { font-size: 13px; } .how p { margin: 6px 0; }
+  @media (max-width: 760px) { .g { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 520px) { .sug { flex-direction: column; align-items: stretch; } #big b { font-size: 24px; } #axis { height: 230px; } .dep td { font-size: 14px; } .legs .sh { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>检票口关门前</h1>
+  <p class="lead">检票口几点关门是定的，路上每一段却每次不一样。把每段写成「最快 / 通常 / 最慢」三个分钟数，算出几点出门有几成把握赶上，要九成五的把握最晚几点走。默认数据是虚构的。</p>
+
+  <div class="card">
+    <div class="g">
+      <div><label for="name">备注（可不填）</label><input id="name" maxlength="30"></div>
+      <div><label for="gate">检票口几点关门（时:分）</label><input id="gate" maxlength="5"></div>
+      <div><label for="leave">打算几点出门</label><input id="leave" maxlength="5"></div>
+      <div><label for="target">想要几成把握（%）</label><input id="target" inputmode="decimal" maxlength="5"></div>
+      <div class="full"><label for="legs">路上的每一段，一行一段：名称 最快 通常 最慢（分钟，空格隔开，最多 10 段）</label><textarea id="legs" rows="5" maxlength="600"></textarea></div>
+    </div>
+    <div class="presets" id="presets"><button id="reset" class="ghost">恢复默认</button></div>
+  </div>
+
+  <div class="err" id="error"></div>
+
+  <div id="out">
+    <div class="board">
+      <div class="row1"><span class="stamp" id="stamp"></span><span id="big"></span></div>
+      <div id="sumTxt"></div>
+      <ul id="facts"></ul>
+      <table class="dep" id="dep"></table>
+    </div>
+
+    <div class="card" id="sugCard">
+      <h2>改一样试试（点一下代回重算）</h2>
+      <div id="sugs"></div>
+    </div>
+
+    <div class="card">
+      <h2>从出门到关门</h2>
+      <div class="tl"><canvas id="axis"></canvas></div>
+      <div class="slide"><label for="sl" style="display:inline">拖一下出门时刻：</label><input type="range" id="sl" min="0" max="100" value="50"><span id="slTxt"></span></div>
+      <p class="muted">曲线是「几点出门 → 几成把握赶上」；竖线是你打算出门的时刻，虚线是你要的把握。拖滑块只是看看，不改你填的出门时刻。</p>
+      <table class="legs" id="legTab"></table>
+    </div>
+
+    <div class="card">
+      <h2>带走</h2>
+      <div class="dl">
+        <button id="dlPNG">结果卡 PNG</button><button id="dlCSV" class="ghost">CSV</button><button id="dlMD" class="ghost">Markdown</button><button id="dlJSON" class="ghost">JSON 备份</button>
+      </div>
+      <p class="muted" style="margin-top:6px">填的内容自动存在这台设备的浏览器里，不上传。</p>
+    </div>
+  </div>
+
+  <div class="card how">
+    <h2>怎么算的</h2>
+    <p>每一段在「最快」和「最慢」之间变化，「通常」那个数最常见，按三角分布处理；三个数一样就是固定时长。各段互相独立，把它们的分布叠起来（数值卷积），得到路上总时长的分布。出门到关门还有 A 分钟，赶上的把握就是「总时长不超过 A」的概率。要 p 的把握，就找最少要留的整分钟数，关门时刻减掉它就是最晚出门。</p>
+    <p>「波动占比」是每段方差占总方差的份额，用来指出最该想办法的那一段。建议里的「最慢砍一半」是把那段的最慢值改成通常和最慢的中间，代回后出门时刻也改成新的最晚时刻。</p>
+    <p>边界：三个分钟数是你自己的估计，不是任何车站、机场或打车平台的数据；没算几段一起变慢的情况（同一场雨、同一个高峰会让打车和排队一起慢，这时真实把握比这里算的低）；没算临时停运、改签和关门时间提前。它回答的是「按你填的估计，几点出门有几成把握」。</p>
+  </div>
+</div>
+
+  <script>
+/* 检票口关门前 · 计算核心
+ * 场景：赶高铁/飞机/考试，检票口几点关门是定的，路上每一段（下楼、打车、安检排队、走到检票口）
+ *       的时间却每次不一样。几点出门，有几成把握赶上？要九成五的把握，最晚几点出门？
+ * 模型（设计选择，不是交通数据）：
+ *   · 每一段写「最快 / 通常 / 最慢」三个分钟数，按三角分布处理（最快到最慢之间，通常那个最可能）；
+ *     三个数相同就是固定时长。
+ *   · 各段互相独立：一段慢了不会让另一段也跟着慢（同一场雨让打车和安检一起变慢的情况没算）。
+ *   · 路上总时长 T = 各段之和。出门到关门的可用时间 A = 关门时刻 − 出门时刻。赶上的把握 = P(T ≤ A)。
+ *   · T 的分布用数值卷积：每段相对最快值的部分离散到步长 h 的格点（h = max(总浮动/3000, min(0.05, 最窄浮动/40)) 分钟），
+ *     每个格点的概率 = 该段三角分布在格子 [kh−h/2, kh+h/2) 上的精确积分；卷积后每个格点的概率在格子内均匀摊开求 CDF。
+ *   · 最晚出门（把握 p）= 关门时刻 − 满足 P(T ≤ d) ≥ p 的最小整分钟 d。
+ * 所有时刻按分钟计，关门时刻可写到 29:59 表示第二天凌晨。 */
+(function (root) {
+  'use strict';
+  function Bad(message, field) { const e = new Error(message); e.field = field; return e; }
+  const KEYS = ['name', 'gate', 'leave', 'target', 'legs'];
+  const MAX_NAME = 30, MAX_LEGS = 10, MAX_LEG_MIN = 600, LEG_NAME = 12;
+  const STAMP = { safe: '稳', risky: '悬', miss: '多半赶不上', late: '来不及了' };
+  const LEVELS = [50, 80, 90, 95, 99];
+
+  const clean = (v) => String(v == null ? '' : v).trim();
+  function parseClock(v, label, field, maxH) {
+    const t = clean(v).replace('：', ':');
+    if (t === '') throw Bad(label + '没填', field);
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+    if (!m) throw Bad(label + '要写成 时:分，比如 14:25', field);
+    const h = +m[1], mi = +m[2];
+    if (mi > 59 || h > maxH) throw Bad(label + '要在 0:00 到 ' + maxH + ':59 之间', field);
+    return h * 60 + mi;
+  }
+  function parseTarget(v) {
+    const t = clean(v).replace(/[%％]$/, '');
+    if (t === '') throw Bad('想要几成把握没填', 'target');
+    if (!/^\d+(\.\d)?$/.test(t)) throw Bad('想要的把握写百分数，最多 1 位小数，比如 95', 'target');
+    const x = +t;
+    if (!(x >= 50 && x <= 99.9)) throw Bad('想要的把握在 50 到 99.9 之间', 'target');
+    return x;
+  }
+  function parseLegs(v) {
+    const lines = String(v == null ? '' : v).split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    if (!lines.length) throw Bad('路上的分段没填', 'legs');
+    if (lines.length > MAX_LEGS) throw Bad('路上最多分 ' + MAX_LEGS + ' 段（现在 ' + lines.length + ' 段）', 'legs');
+    return lines.map((ln, i) => {
+      const parts = ln.split(/[\s,，、]+/).filter(Boolean);
+      const at = '第 ' + (i + 1) + ' 段';
+      if (parts.length !== 4) throw Bad(at + '要写 4 项：名称 最快 通常 最慢（分钟）', 'legs');
+      const name = parts[0];
+      if (name.length > LEG_NAME) throw Bad(at + '的名称最多 ' + LEG_NAME + ' 个字', 'legs');
+      if (/^\d/.test(name)) throw Bad(at + '要先写名称，再写三个分钟数', 'legs');
+      const nums = parts.slice(1).map((p) => {
+        if (!/^\d+(\.\d)?$/.test(p)) throw Bad(at + '「' + p.slice(0, 8) + '」不是分钟数（最多 1 位小数）', 'legs');
+        const x = +p;
+        if (x > MAX_LEG_MIN) throw Bad(at + '每个数最多 ' + MAX_LEG_MIN + ' 分钟', 'legs');
+        return x;
+      });
+      const [a, b, c] = nums;
+      if (!(a <= b && b <= c)) throw Bad(at + '要满足 最快 ≤ 通常 ≤ 最慢', 'legs');
+      return { name, a, b, c };
+    });
+  }
+  function parse(inp) {
+    const o = inp || {};
+    const name = clean(o.name);
+    if (name.length > MAX_NAME) throw Bad('备注最多 ' + MAX_NAME + ' 个字', 'name');
+    const gate = parseClock(o.gate, '检票口关门时刻', 'gate', 29);
+    const leave = parseClock(o.leave, '打算几点出门', 'leave', 23);
+    const target = parseTarget(o.target);
+    const legs = parseLegs(o.legs);
+    return { name, gate, leave, target, p: target / 100, legs };
+  }
+
+  /* 三角分布（相对最快值）在 [0, s]、众数 m 的 CDF */
+  function triCdf(x, s, m) {
+    if (x <= 0) return 0;
+    if (x >= s) return 1;
+    if (x <= m) return (x * x) / (s * m);
+    return 1 - ((s - x) * (s - x)) / (s * (s - m));
+  }
+  /* 路上总时长的分布 */
+  function dist(legs) {
+    const A0 = legs.reduce((t, l) => t + l.a, 0);
+    const S = legs.reduce((t, l) => t + (l.c - l.a), 0);
+    const mean = legs.reduce((t, l) => t + (l.a + l.b + l.c) / 3, 0);
+    const vars = legs.map((l) => (l.a * l.a + l.b * l.b + l.c * l.c - l.a * l.b - l.a * l.c - l.b * l.c) / 18);
+    if (S === 0) return { A0, S, h: 0, mass: [1], pre: [1], mean, vars };
+    const minS = Math.min.apply(null, legs.map((l) => l.c - l.a).filter((x) => x > 0));
+    const h = Math.max(S / 3000, Math.min(0.05, minS / 40));
+    let mass = [1];
+    for (const l of legs) {
+      const s = l.c - l.a, m = l.b - l.a;
+      if (s === 0) continue;
+      const n = Math.ceil(s / h - 1e-9) + 1, w = new Array(n);
+      for (let k = 0; k < n; k++) w[k] = triCdf((k + 0.5) * h, s, m) - triCdf((k - 0.5) * h, s, m);
+      const out = new Array(mass.length + n - 1).fill(0);
+      for (let i = 0; i < mass.length; i++) { const mi = mass[i]; if (mi === 0) continue; for (let k = 0; k < n; k++) out[i + k] += mi * w[k]; }
+      mass = out;
+    }
+    const pre = new Array(mass.length); let acc = 0;
+    for (let i = 0; i < mass.length; i++) { acc += mass[i]; pre[i] = acc; }
+    return { A0, S, h, mass, pre, mean, vars };
+  }
+  /* P(T ≤ d)，d 是分钟 */
+  function cdf(G, d) {
+    const r = d - G.A0;
+    if (r < 0) return 0;
+    if (G.S === 0 || r >= G.S) return 1;
+    if (r <= 0) return 0;
+    const j = Math.floor(r / G.h + 0.5);
+    if (j >= G.mass.length) return 1;
+    const lo = j * G.h - G.h / 2;
+    const frac = Math.min(1, Math.max(0, (r - lo) / G.h));
+    const v = (j > 0 ? G.pre[j - 1] : 0) + G.mass[j] * frac;
+    return Math.min(1, Math.max(0, v));
+  }
+  /* 把握 p 需要的最少整分钟 */
+  function needMin(G, p) {
+    let d = Math.ceil(G.A0 - 1e-9);
+    const hi = Math.ceil(G.A0 + G.S + 1e-9);
+    /* 二分：cdf 单调不减 */
+    let lo = d - 1, h2 = hi;
+    if (cdf(G, d) >= p - 1e-12) return d;
+    while (h2 - lo > 1) { const mid = (lo + h2) >> 1; if (cdf(G, mid) >= p - 1e-12) h2 = mid; else lo = mid; }
+    return h2;
+  }
+  /* 连续分位数（画图与说明用的中位数等） */
+  function quant(G, p) {
+    if (G.S === 0) return G.A0;
+    let lo = G.A0, hi = G.A0 + G.S;
+    for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (cdf(G, mid) >= p) hi = mid; else lo = mid; }
+    return hi;
+  }
+  /* 赶上了的话，到检票口平均还剩几分钟：E[A − T | T ≤ A] = ∫_0^A P(T ≤ u) du / P(T ≤ A) */
+  function spareIfMade(G, A) {
+    const P = cdf(G, A);
+    if (P <= 0) return null;
+    const lo = Math.max(0, G.A0 - 1), n = 400, w = (A - lo) / n;
+    if (A <= lo) return 0;
+    let s = 0;
+    for (let i = 0; i < n; i++) s += cdf(G, lo + (i + 0.5) * w) * w;
+    return s / P;
+  }
+
+  function clock(m) {
+    const day = Math.floor(m / 1440), r = ((m % 1440) + 1440) % 1440;
+    const t = Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0');
+    return day === -1 ? '前一天 ' + t : day < -1 ? (-day) + ' 天前 ' + t : day === 1 ? '第二天 ' + t : day > 1 ? '第 ' + (day + 1) + ' 天 ' + t : t;
+  }
+  function pct(x) {
+    if (x >= 1) return '100%';
+    if (x <= 0) return '0%';
+    const v = Math.round(x * 1000) / 10;
+    if (v >= 100) return '>99.9%';
+    if (v <= 0) return '<0.1%';
+    return (Number.isInteger(v) ? String(v) : v.toFixed(1)) + '%';
+  }
+  const num1 = (x) => { const v = Math.round(x * 10) / 10; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
+  const pTxt = (t) => (Number.isInteger(t) ? String(t) : t.toFixed(1)) + '%';
+
+  function calculate(inp) {
+    const D = parse(inp);
+    const G = dist(D.legs);
+    const avail = D.gate - D.leave;
+    const P = avail < 0 ? 0 : cdf(G, avail);
+    const need = needMin(G, D.p);
+    const latest = D.gate - need;
+    const table = LEVELS.concat(LEVELS.indexOf(D.target) >= 0 ? [] : [D.target]).sort((a, b) => a - b).map((t) => {
+      const d = needMin(G, t / 100);
+      return { t, need: d, leave: D.gate - d, mine: t === D.target };
+    });
+    let v;
+    if (avail < G.A0 - 1e-9) v = 'late';
+    else if (P >= D.p - 1e-12) v = 'safe';
+    else if (P >= 0.5) v = 'risky';
+    else v = 'miss';
+    const totVar = G.vars.reduce((a, b) => a + b, 0);
+    const legs = D.legs.map((l, i) => ({ name: l.name, a: l.a, b: l.b, c: l.c, share: totVar > 0 ? G.vars[i] / totVar : 0 }));
+    let worst = null;
+    legs.forEach((l, i) => { if (l.share > 0 && (worst === null || l.share > legs[worst].share + 1e-12)) worst = i; });
+    const spare = avail >= 0 ? spareIfMade(G, avail) : null;
+    const early = v === 'safe' ? latest - D.leave : 0; /* 比需要的早出门几分钟 */
+    const R = { D, G, avail, P, need, latest, table, verdict: v, stamp: STAMP[v], legs, worst, spare, early,
+      fastest: G.A0, slowest: G.A0 + G.S, median: quant(G, 0.5), mean: G.mean, spareAtLatest: spareIfMade(G, need) };
+    R.summary = summaryOf(R);
+    R.facts = factsOf(R);
+    return R;
+  }
+
+  function summaryOf(R) {
+    const D = R.D, lv = clock(D.leave), g = clock(D.gate);
+    const tail = '要 ' + pTxt(D.target) + ' 的把握，最晚 ' + clock(R.latest) + ' 出门。';
+    if (R.verdict === 'late') return lv + ' 出门来不及了：离 ' + g + ' 关门只有 ' + R.avail + ' 分钟，每段都按最快走也要 ' + num1(R.fastest) + ' 分钟。' + tail;
+    if (R.verdict === 'safe') {
+      if (R.early >= 1) return lv + ' 出门稳了：' + pct(R.P) + ' 赶得上 ' + g + ' 关门。' + tail.replace('。', '') + '，你还能晚 ' + R.early + ' 分钟。';
+      return lv + ' 出门稳了：' + pct(R.P) + ' 赶得上 ' + g + ' 关门，正好是' + pTxt(D.target) + '把握的最晚时刻。';
+    }
+    return lv + ' 出门只有 ' + pct(R.P) + ' 赶得上 ' + g + ' 关门。' + tail.replace('。', '') + '，得再早 ' + (D.leave - R.latest) + ' 分钟。';
+  }
+  function factsOf(R) {
+    const D = R.D, f = [];
+    f.push('路上 ' + D.legs.length + ' 段加起来：最快 ' + num1(R.fastest) + ' 分钟，最慢 ' + num1(R.slowest) + ' 分钟，一半的时候不超过 ' + num1(R.median) + ' 分钟，平均 ' + num1(R.mean) + ' 分钟。');
+    if (R.worst !== null) {
+      const w = R.legs[R.worst];
+      f.push('最没准的是「' + w.name + '」（' + num1(w.a) + '–' + num1(w.c) + ' 分钟），路上时长的波动有 ' + Math.round(w.share * 100) + '% 来自它。');
+    } else f.push('每一段都是固定时长，按时出门就一定赶得上，不用留余量以外的提前量。');
+    if (R.spare !== null && R.P > 0) f.push('按 ' + clock(D.leave) + ' 出门，赶上的话到了平均还剩 ' + num1(R.spare) + ' 分钟。');
+    if (R.verdict === 'risky' || R.verdict === 'miss') { const k = Math.round((1 - R.P) * 10); f.push(k >= 10 ? '换句话说：这样出门几乎每次都赶不上。' : '换句话说：这样出门 10 次，大约有 ' + k + ' 次赶不上。'); }
+    return f;
+  }
+
+  function sameInput(inp) { const o = {}; KEYS.forEach((k) => { o[k] = String(inp[k] == null ? '' : inp[k]); }); return o; }
+  const clockIn = (m) => { const r = ((m % 1440) + 1440) % 1440; return String(Math.floor(r / 60)).padStart(2, '0') + ':' + String(r % 60).padStart(2, '0'); };
+  function legsText(legs) { return legs.map((l) => [l.name, num1(l.a), num1(l.b), num1(l.c)].join(' ')).join('\n'); }
+  function suggestions(inp, R) {
+    const D = R.D, base = sameInput(inp), out = [];
+    /* 1. 出门时刻改到「把握刚好够」的最晚时刻（只在同一天内能写进出门框时给） */
+    if (R.latest !== D.leave && R.latest >= 0 && R.latest <= 23 * 60 + 59) {
+      const s = Object.assign({}, base, { leave: clockIn(R.latest) });
+      const R2 = calculate(s);
+      out.push({ id: 'leave', text: (R.latest < D.leave ? '早 ' + (D.leave - R.latest) + ' 分钟，' : '晚 ' + (R.latest - D.leave) + ' 分钟，') + clock(R.latest) + ' 出门：' + pct(R2.P) + ' 赶得上，到了平均还剩 ' + num1(R2.spare) + ' 分钟', apply: s, R2 });
+    }
+    /* 2. 最没准那一段，最慢的那头砍掉一半（比如换个不怕堵的走法） */
+    if (R.worst !== null) {
+      const w = D.legs[R.worst];
+      const nc = Math.round((w.b + (w.c - w.b) / 2) * 10) / 10;
+      if (w.c - nc >= 1) {
+        const legs = D.legs.map((l, i) => (i === R.worst ? Object.assign({}, l, { c: nc }) : l));
+        const s0 = Object.assign({}, base, { legs: legsText(legs) });
+        const R1 = calculate(s0);
+        const gain = R1.latest - R.latest;
+        if (gain >= 1 && R1.latest >= 0 && R1.latest <= 1439) {
+          const s = Object.assign({}, s0, { leave: clockIn(R1.latest) });
+          const R2 = calculate(s);
+          out.push({ id: 'worst', text: '「' + w.name + '」要是最慢只要 ' + num1(nc) + ' 分钟（比如换个不怕堵的走法），' + pTxt(D.target) + ' 把握的最晚出门从 ' + clock(R.latest) + ' 推到 ' + clock(R1.latest) + '，多出 ' + gain + ' 分钟', apply: s, R2, gain });
+        }
+      }
+    }
+    /* 3. 只求八成把握 */
+    if (D.target > 80) {
+      const s0 = Object.assign({}, base, { target: '80' });
+      const R1 = calculate(s0);
+      const gain = R1.latest - R.latest;
+      if (gain >= 1 && R1.latest >= 0 && R1.latest <= 1439) {
+        const s = Object.assign({}, s0, { leave: clockIn(R1.latest) });
+        const R2 = calculate(s);
+        out.push({ id: 'target', text: '只求八成把握（每 5 次约有 1 次赶不上）的话，最晚 ' + clock(R1.latest) + ' 出门，比 ' + pTxt(D.target) + ' 把握晚 ' + gain + ' 分钟', apply: s, R2, gain });
+      }
+    }
+    return out;
+  }
+
+  function csvCell(v) { const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function toCSV(R, when) {
+    const D = R.D, L = [];
+    L.push(['检票口关门前', D.name, when].map(csvCell).join(','));
+    L.push(['关门时刻', clock(D.gate), '打算出门', clock(D.leave), '想要把握', pTxt(D.target)].map(csvCell).join(','));
+    L.push(['结论', R.stamp, R.summary].map(csvCell).join(','));
+    L.push('');
+    L.push('路段,最快(分钟),通常(分钟),最慢(分钟),波动占比');
+    R.legs.forEach((l) => L.push([csvCell(l.name), num1(l.a), num1(l.b), num1(l.c), Math.round(l.share * 100) + '%'].join(',')));
+    L.push('');
+    L.push('把握,至少留(分钟),最晚出门');
+    R.table.forEach((x) => L.push([pTxt(x.t), x.need, csvCell(clock(x.leave))].join(',')));
+    L.push('');
+    L.push(['按打算的时刻出门赶上的把握', pct(R.P), '可用分钟', R.avail].map(csvCell).join(','));
+    R.facts.forEach((f) => L.push(['', f].map(csvCell).join(',')));
+    L.push(['', '每段按三角分布、各段互相独立估算；没算一起变慢的情况（同一场雨、同一个高峰）；默认数据为虚构示例。'].map(csvCell).join(','));
+    return L.join('\n') + '\n';
+  }
+  function toMD(R, when, sg) {
+    const D = R.D, L = [];
+    L.push('# 检票口关门前' + (D.name ? '：' + D.name : ''), '', '生成时间：' + when + '　结论：**' + R.stamp + '**', '', '> ' + R.summary, '');
+    R.facts.forEach((f) => L.push('- ' + f));
+    L.push('', '## 路上每一段（分钟）', '', '| 路段 | 最快 | 通常 | 最慢 | 波动占比 |', '|---|---|---|---|---|');
+    R.legs.forEach((l) => L.push('| ' + l.name.replace(/\|/g, '/') + ' | ' + num1(l.a) + ' | ' + num1(l.b) + ' | ' + num1(l.c) + ' | ' + Math.round(l.share * 100) + '% |'));
+    L.push('', '## 几成把握几点出门（' + clock(D.gate) + ' 关门）', '', '| 把握 | 至少留 | 最晚出门 |', '|---|---|---|');
+    R.table.forEach((x) => L.push('| ' + pTxt(x.t) + (x.mine ? '（你要的）' : '') + ' | ' + x.need + ' 分钟 | ' + clock(x.leave) + ' |'));
+    if (sg && sg.length) { L.push('', '## 改一样试试', ''); sg.forEach((s) => L.push('- ' + s.text)); }
+    L.push('', '每段按三角分布（最快到最慢之间、通常最可能）、各段互相独立估算，没算一起变慢的情况；不是任何车站或机场的实测数据。默认数据为虚构示例。');
+    return L.join('\n') + '\n';
+  }
+
+  const DEFAULT = { name: '赶下午那趟高铁', gate: '14:25', leave: '13:15', target: '95',
+    legs: '下楼到小区门口 3 4 6\n打车到高铁站 25 35 60\n进站安检排队 5 10 25\n走到检票口 4 6 10' };
+  const PRESETS = [
+    ['默认：赶下午的高铁', DEFAULT],
+    ['坐地铁去机场', { name: '早班机', gate: '7:20', leave: '5:00', target: '99', legs: '走到地铁站 8 10 12\n地铁到机场 52 55 62\n值机托运 5 12 30\n安检 8 15 40\n走到登机口 5 8 15' }],
+    ['去考场', { name: '期末考', gate: '8:30', leave: '7:55', target: '99', legs: '走到车站 5 6 8\n等公交 0 6 15\n公交 12 15 25\n找考场 2 4 10' }],
+    ['只差最后一段', { name: '已经到站了', gate: '14:25', leave: '14:12', target: '95', legs: '进站安检排队 5 10 25\n走到检票口 4 6 10' }],
+  ];
+  const api = { DEFAULT, PRESETS, KEYS, MAX_NAME, MAX_LEGS, LEVELS, STAMP, parse, parseLegs, triCdf, dist, cdf, needMin, quant, spareIfMade, calculate, suggestions, toCSV, toMD, clock, clockIn, pct, num1, pTxt, legsText };
+  if (typeof module === 'object' && module.exports) module.exports = api; else root.AppCore = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+  </script>
+  <script>
+/* 检票口关门前 · 界面层 */
+(function () {
+  'use strict';
+  const C = window.AppCore;
+  const KEY = 'gate-closes:v1';
+  const NAME = '检票口关门前';
+  const copy = (o) => JSON.parse(JSON.stringify(o));
+  const DEFAULT = C.DEFAULT, PRESETS = C.PRESETS, KEYS = C.KEYS;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const FF = '"PingFang SC","Microsoft YaHei",sans-serif';
+  const clock = C.clock, pct = C.pct, num1 = C.num1, pTxt = C.pTxt;
+  let state = copy(DEFAULT);
+  let last = null, sl = null;
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 隐私模式忽略 */ } }
+  function load() {
+    try {
+      const o = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+      const s = {};
+      for (const k of KEYS) { if (o[k] == null || typeof o[k] === 'object') return null; s[k] = String(o[k]).slice(0, 700); }
+      return s;
+    } catch (e) { return null; }
+  }
+  function fill() { KEYS.forEach((k) => { $(k).value = state[k]; }); }
+
+  function bigText(R) {
+    if (R.verdict === 'late') return '按最快走也来不及';
+    return '赶上的把握 <b>' + pct(R.P) + '</b>';
+  }
+  const plain = (h) => h.replace(/<[^>]+>/g, '');
+  function depRows(R) {
+    const D = R.D;
+    const head = '<tr><th>把握</th><th>至少留</th><th>最晚出门</th></tr>';
+    const rows = R.table.map((x) => '<tr class="' + (x.mine ? 'mine' : '') + '"><td>' + pTxt(x.t) + (x.mine ? ' 你要的' : '') + '</td><td>' + x.need + ' 分钟</td><td>' + clock(x.leave) + '</td></tr>').join('');
+    const now = '<tr class="now"><td>你打算</td><td>' + R.avail + ' 分钟</td><td>' + clock(D.leave) + '（' + pct(R.P) + '）</td></tr>';
+    return head + rows + now;
+  }
+  function legRows(R) {
+    const head = '<tr><th>路段</th><th>最快</th><th>通常</th><th>最慢</th><th>波动占比</th><th class="sh"></th></tr>';
+    return head + R.legs.map((l, i) => '<tr class="' + (i === R.worst ? 'worst' : '') + '"><td>' + esc(l.name) + '</td><td>' + num1(l.a) + '</td><td>' + num1(l.b) + '</td><td>' + num1(l.c) + '</td><td>' + Math.round(l.share * 100) + '%</td><td class="sh"><span class="bar" style="width:' + Math.round(l.share * 80) + 'px"></span></td></tr>').join('');
+  }
+  /* 滑块范围：最快能到的出门时刻 ~ 留出最慢的出门时刻，再各放宽一点 */
+  function slRange(R) {
+    const D = R.D;
+    const lo = Math.floor(D.gate - R.slowest) - 5, hi = Math.ceil(D.gate - R.fastest) + 5;
+    return [lo, hi];
+  }
+  function slLine(R, m) {
+    const D = R.D, a = D.gate - m, P = C.cdf(R.G, a);
+    return clock(m) + ' 出门：离关门 ' + a + ' 分钟，' + pct(P) + ' 赶得上';
+  }
+  function renderSlide(R) {
+    const [lo, hi] = slRange(R);
+    $('sl').min = String(lo); $('sl').max = String(hi);
+    if (sl == null || sl < lo || sl > hi) sl = Math.min(hi, Math.max(lo, R.D.leave));
+    $('sl').value = String(sl);
+    $('slTxt').textContent = slLine(R, sl);
+    renderChart(R);
+  }
+
+  /* 图：x = 出门时刻，y = 赶上的把握 */
+  function drawChart(g, R, W, H, fs, mark) {
+    const D = R.D;
+    const [lo, hi] = slRange(R);
+    g.font = fs + 'px ' + FF;
+    const x0 = Math.ceil(g.measureText('100%').width + 12), x1 = W - 12, y0 = fs + 14, y1 = H - fs * 2 - 16;
+    const xv = (m) => x0 + (m - lo) / (hi - lo) * (x1 - x0), yv = (p) => y1 - p * (y1 - y0);
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    g.textBaseline = 'middle'; g.textAlign = 'right'; g.strokeStyle = '#ece8df'; g.lineWidth = 1; g.fillStyle = '#7a7f88';
+    for (let p = 0; p <= 1.0001; p += 0.25) { const y = yv(p); g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.textBaseline = p < 0.01 ? 'bottom' : 'middle'; g.fillText(Math.round(p * 100) + '%', x0 - 6, p < 0.01 ? y - 1 : y); }
+    /* 时刻刻度：取整步长 */
+    const span = hi - lo, steps = [5, 10, 15, 20, 30, 60, 120, 180, 240, 360];
+    const fits = (s) => { let prevR = -Infinity; for (let m = Math.ceil(lo / s) * s; m <= hi; m += s) { const w = g.measureText(clock(m)).width, x = xv(m); if (x - w / 2 < prevR + 10) return false; prevR = x + w / 2; } return true; };
+    let st = steps.find(fits) || 1440;
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    for (let m = Math.ceil(lo / st) * st; m <= hi; m += st) { const x = xv(m); g.beginPath(); g.moveTo(x, y1); g.lineTo(x, y1 + 4); g.stroke(); g.fillText(clock(m), x, y1 + 7); }
+    g.textAlign = 'left'; g.fillText('出门时刻 →', x0, y1 + fs + 10);
+    /* 要的把握虚线 */
+    g.setLineDash([6, 4]); g.strokeStyle = '#d9822b'; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(x0, yv(D.p)); g.lineTo(x1, yv(D.p)); g.stroke(); g.setLineDash([]);
+    /* 曲线 */
+    g.strokeStyle = '#23406b'; g.lineWidth = 2.5; g.beginPath();
+    const n = 240;
+    for (let i = 0; i <= n; i++) { const m = lo + (hi - lo) * i / n, p = C.cdf(R.G, D.gate - m); const x = xv(m), y = yv(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }
+    g.stroke();
+    /* 最晚出门点 */
+    const lx = xv(R.latest), lp = C.cdf(R.G, R.need);
+    g.fillStyle = '#d9822b'; g.beginPath(); g.arc(lx, yv(lp), 5, 0, Math.PI * 2); g.fill();
+    const lt = '要 ' + pTxt(D.target) + '：最晚 ' + clock(R.latest);
+    g.textBaseline = 'bottom'; g.font = 'bold ' + fs + 'px ' + FF;
+    const ltw = g.measureText(lt).width;
+    let tx = Math.max(x0 + 2, Math.min(x1 - ltw - 2, lx - ltw - 8));
+    let ty = yv(D.p) - 6; if (ty < y0 + fs) ty = yv(D.p) + fs + 8;
+    g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(tx - 3, ty - fs - 2, ltw + 6, fs + 4);
+    g.fillStyle = '#b8661a'; g.fillText(lt, tx, ty);
+    /* 打算出门竖线 */
+    const vx = xv(Math.min(hi, Math.max(lo, D.leave)));
+    g.strokeStyle = '#1f8a4c'; g.lineWidth = 2; g.beginPath(); g.moveTo(vx, y0); g.lineTo(vx, y1); g.stroke();
+    g.font = fs + 'px ' + FF;
+    const vt = '打算 ' + clock(D.leave) + ' · ' + pct(R.P), vw = g.measureText(vt).width;
+    const vtx = vx + 6 + vw > x1 ? vx - 6 - vw : vx + 6, vty = y1 - fs * 2 - 8;
+    g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(vtx - 3, vty - 2, vw + 6, fs + 4);
+    g.fillStyle = '#1f8a4c'; g.textBaseline = 'top'; g.fillText(vt, vtx, vty);
+    /* 滑块点 */
+    if (mark != null) {
+      const p = C.cdf(R.G, D.gate - mark);
+      g.fillStyle = '#22252b'; g.beginPath(); g.arc(xv(mark), yv(p), 4, 0, Math.PI * 2); g.fill();
+    }
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  }
+  function renderChart(R) {
+    const cv = $('axis'), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawChart(g, R, W, H, W < 500 ? 11 : 12, sl);
+  }
+  function sugList(sg) {
+    $('sugCard').style.display = sg.length ? '' : 'none';
+    $('sugs').innerHTML = sg.map((s, k) => '<div class="sug"><span>' + esc(s.text) + '</span><button class="ghost" data-sug="' + s.id + '" data-k="' + k + '">代回</button></div>').join('');
+    [].forEach.call($('sugs').querySelectorAll('button'), (b) => b.addEventListener('click', () => { state = copy(sg[+b.dataset.k].apply); fill(); run(); }));
+  }
+
+  function run() {
+    KEYS.forEach((k) => $(k).classList.remove('bad'));
+    $('error').style.display = 'none';
+    try {
+      const R = C.calculate(state);
+      const sg = C.suggestions(state, R);
+      $('out').style.display = '';
+      $('stamp').textContent = R.stamp; $('stamp').className = 'stamp ' + R.verdict;
+      $('big').innerHTML = bigText(R);
+      $('sumTxt').textContent = R.summary;
+      $('facts').innerHTML = R.facts.map((f) => '<li>' + esc(f) + '</li>').join('');
+      $('dep').innerHTML = depRows(R);
+      $('legTab').innerHTML = legRows(R);
+      last = { r: R, sg };
+      sl = R.D.leave;
+      renderSlide(R); sugList(sg);
+    } catch (e) {
+      last = null;
+      if (e.field) { const el = $(e.field); if (el) el.classList.add('bad'); }
+      $('error').textContent = '算不了：' + e.message; $('error').style.display = 'block';
+      $('out').style.display = 'none';
+    }
+    save();
+  }
+
+  /* ── 导出 ── */
+  function stamp() { const d = new Date(), z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
+  function download(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+  function fit(g, t, w) { let s = String(t); if (g.measureText(s).width <= w) return s; while (s.length > 1 && g.measureText(s + '…').width > w) s = s.slice(0, -1); return s + '…'; }
+  function wrap(g, t, w) {
+    const NOHEAD = '，。、；：！？）」』”%·→｜';
+    const out = []; let line = [];
+    const toks = String(t).match(/[−+-]?[0-9][0-9.,:]*(\s?(分钟|%))?|[A-Za-z_][A-Za-z0-9_.\-]*|[\s\S]/g) || [];
+    const width = (a) => g.measureText(a.join('')).width;
+    for (const tk of toks) {
+      if (line.length && width(line.concat([tk])) > w) {
+        let carry = [tk];
+        while (line.length > 1 && (NOHEAD.indexOf(carry[0][0]) >= 0 || '（「『“'.indexOf(line[line.length - 1]) >= 0)) carry.unshift(line.pop());
+        out.push(line.join(''));
+        line = carry; if (/^\s+$/.test(line[0])) line.shift();
+      } else line.push(tk);
+    }
+    if (line.length) out.push(line.join('')); return out;
+  }
+  function drawPNG(Lx) {
+    const R = Lx.r, D = R.D;
+    const Wd = 1080, H = 1350, X = 64, TW = 952;
+    const cv = document.createElement('canvas'); cv.width = Wd; cv.height = H;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#f1efe9'; g.fillRect(0, 0, Wd, H);
+    /* 深色发车牌 */
+    g.fillStyle = '#1c2230'; g.fillRect(32, 32, Wd - 64, 560);
+    g.fillStyle = '#9aa3b5'; g.font = '22px ' + FF;
+    g.fillText(fit(g, NAME + (D.name ? ' · ' + D.name : '') + ' · ' + clock(D.gate) + ' 关门', TW - 240), X, 88);
+    g.save(); g.translate(X + TW - 100, 78);
+    const col = R.verdict === 'safe' ? '#6fcf8f' : R.verdict === 'risky' ? '#f0b53a' : '#ff7a66';
+    g.strokeStyle = g.fillStyle = col; g.lineWidth = 4; g.font = 'bold 28px ' + FF;
+    const sw = Math.max(150, g.measureText(R.stamp).width + 36);
+    g.strokeRect(-sw / 2, -28, sw, 50); g.textAlign = 'center'; g.fillText(R.stamp, 0, 8); g.restore();
+    g.fillStyle = '#ffffff'; g.font = 'bold 44px ' + FF;
+    g.fillText(fit(g, plain(bigText(R)), TW), X, 156);
+    let y = 204;
+    g.font = '24px ' + FF; g.fillStyle = '#f3e9c6';
+    wrap(g, R.summary, TW).slice(0, 3).forEach((l) => { g.fillText(l, X, y); y += 34; });
+    y += 14;
+    /* 把握表 */
+    const rowH = 38, COLX = [X, X + 420, X + TW];
+    g.font = '18px ' + FF; g.fillStyle = '#9aa3b5';
+    g.fillText('把握', COLX[0], y); g.textAlign = 'right'; g.fillText('至少留', COLX[1], y); g.fillText('最晚出门', COLX[2], y); g.textAlign = 'left';
+    y += 14; g.strokeStyle = '#39425a'; g.lineWidth = 1; g.beginPath(); g.moveTo(X, y); g.lineTo(X + TW, y); g.stroke();
+    const rows = R.table.map((x) => [pTxt(x.t) + (x.mine ? ' 你要的' : ''), x.need + ' 分钟', clock(x.leave), x.mine ? '#f0b53a' : '#f3e9c6'])
+      .concat([['你打算', R.avail + ' 分钟', clock(D.leave) + '（' + pct(R.P) + '）', '#6fcf8f']]);
+    const maxRows = Math.floor((560 + 32 - 20 - y) / rowH);
+    rows.slice(0, maxRows).forEach((r) => {
+      y += rowH; g.font = '26px "SF Mono",Menlo,Consolas,' + FF; g.fillStyle = r[3];
+      g.fillText(r[0], COLX[0], y - 8); g.textAlign = 'right'; g.fillText(r[1], COLX[1], y - 8); g.fillText(r[2], COLX[2], y - 8); g.textAlign = 'left';
+    });
+    y = 592 + 36;
+    /* 曲线 */
+    g.save(); g.translate(X - 8, y); drawChart(g, R, TW + 16, 330, 17, null); g.restore();
+    y += 330 + 40;
+    g.font = '20px ' + FF; g.fillStyle = '#22252b';
+    for (const f of R.facts) { const ls = wrap(g, '· ' + f, TW); if (y + ls.length * 29 > H - 210) break; ls.forEach((l) => { g.fillText(l, X, y); y += 29; }); y += 2; }
+    y += 6;
+    for (const s of Lx.sg) { const ls = wrap(g, '· 改一样：' + s.text, TW); if (y + ls.length * 29 > H - 92) break; ls.forEach((l) => { g.fillText(l, X, y); y += 29; }); y += 2; }
+    g.fillStyle = '#7a7f88'; g.font = '18px ' + FF;
+    ['每段按三角分布、各段互相独立估算，没算几段一起变慢；分钟数是使用者自己的估计。', '默认数据为虚构示例。'].forEach((l, i) => g.fillText(l, X, H - 66 + i * 27));
+    return Promise.resolve(cv);
+  }
+  function backup() {
+    const R = last.r, D = R.D, r4 = (x) => Math.round(x * 10000) / 10000;
+    return { app: NAME, version: 1, savedAt: stamp(), input: copy(state), result: { verdict: R.verdict, stamp: R.stamp, summary: R.summary,
+      chance: r4(R.P), availableMin: R.avail, needMin: R.need, latestLeave: clock(R.latest), fastestMin: R.fastest, slowestMin: R.slowest, medianMin: Math.round(R.median * 10) / 10,
+      table: R.table.map((x) => ({ target: x.t, needMin: x.need, latestLeave: clock(x.leave) })),
+      legs: R.legs.map((l) => ({ name: l.name, fastest: l.a, usual: l.b, slowest: l.c, share: r4(l.share) })) } };
+  }
+  function init() {
+    let dt = null;
+    KEYS.forEach((k) => { const el = $(k); el.addEventListener('input', () => { state[k] = el.value; save(); clearTimeout(dt); dt = setTimeout(run, 200); }); });
+    PRESETS.forEach((p) => {
+      const b = document.createElement('button'); b.className = 'ghost'; b.textContent = p[0];
+      b.addEventListener('click', () => { state = copy(p[1]); fill(); run(); });
+      $('presets').appendChild(b);
+    });
+    $('reset').addEventListener('click', () => { state = copy(DEFAULT); fill(); run(); });
+    $('sl').addEventListener('input', () => { if (!last) return; sl = +$('sl').value; $('slTxt').textContent = slLine(last.r, sl); renderChart(last.r); });
+    $('dlCSV').addEventListener('click', () => { if (last) download(NAME + '.csv', new Blob(['\ufeff' + C.toCSV(last.r, stamp())], { type: 'text/csv;charset=utf-8' })); });
+    $('dlMD').addEventListener('click', () => { if (last) download(NAME + '.md', new Blob([C.toMD(last.r, stamp(), last.sg)], { type: 'text/markdown;charset=utf-8' })); });
+    $('dlJSON').addEventListener('click', () => { if (last) download(NAME + '-备份.json', new Blob([JSON.stringify(backup(), null, 2)], { type: 'application/json' })); });
+    $('dlPNG').addEventListener('click', () => { if (last) drawPNG(last).then((cv2) => cv2.toBlob((b) => download(NAME + '-1080x1350.png', b), 'image/png')); });
+    let rt = null; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (last) renderChart(last.r); }, 150); });
+    state = load() || copy(DEFAULT);
+    fill(); run();
+    window.__ex = { last: () => last, state: () => state, presets: PRESETS, DEFAULT, drawPNG, backup, bigPlain: () => plain(bigText(last.r)), slLine: (m) => slLine(last.r, m), sl: () => sl, slRange: () => slRange(last.r) };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
+  </script>
+</body>
+</html>
